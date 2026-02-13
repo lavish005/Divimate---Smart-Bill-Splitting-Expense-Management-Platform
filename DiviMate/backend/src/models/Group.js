@@ -9,7 +9,10 @@ const groupSchema = new mongoose.Schema(
       {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         name: String,
-        type: { type: String, enum: ["Veg", "Non-Veg"] }
+        type: { type: String, enum: ["Veg", "Non-Veg"] },
+        blocked: { type: Boolean, default: false },
+        blockedAt: { type: Date, default: null },
+        blockedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
       }
     ]
   },

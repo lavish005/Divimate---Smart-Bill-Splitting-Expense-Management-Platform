@@ -5,27 +5,36 @@ export const calculateBillSplit = (items, friends) => {
   const totalVeg = vegItems.reduce((sum, i) => sum + i.price, 0);
   const totalNonVeg = nonVegItems.reduce((sum, i) => sum + i.price, 0);
 
-  const vegFriends = friends.filter(f => f.type === "Veg");
+  const allCount = friends.length;
   const nonVegFriends = friends.filter(f => f.type === "Non-Veg");
+  const nonVegCount = nonVegFriends.length;
 
-  const vegSharePerPerson = vegFriends.length ? totalVeg / vegFriends.length : 0;
-  const nonVegSharePerPerson = nonVegFriends.length
-    ? (totalVeg + totalNonVeg) / nonVegFriends.length
-    : 0;
+  // Veg items are shared by EVERYONE
+  const vegPerPerson = allCount > 0 ? totalVeg / allCount : 0;
+
+  // Non-veg items shared only by non-veg people; if none exist, split among all
+  const nonVegPerPerson = nonVegCount > 0
+    ? totalNonVeg / nonVegCount
+    : (allCount > 0 ? totalNonVeg / allCount : 0);
+
+  // Veg person pays only vegPerPerson
+  // Non-veg person pays vegPerPerson + nonVegPerPerson
+  const vegSharePerPerson = Math.round(vegPerPerson);
+  const nonVegSharePerPerson = Math.round(vegPerPerson + nonVegPerPerson);
 
   const details = friends.map(f => {
     if (f.type === "Veg") {
-      return { name: f.name, type: f.type, amountOwed: Math.round(vegSharePerPerson) };
+      return { name: f.name, type: f.type, amountOwed: vegSharePerPerson };
     } else {
-      return { name: f.name, type: f.type, amountOwed: Math.round(nonVegSharePerPerson) };
+      return { name: f.name, type: f.type, amountOwed: nonVegSharePerPerson };
     }
   });
 
   return {
     totalVeg,
     totalNonVeg,
-    vegShare: Math.round(vegSharePerPerson),
-    nonVegShare: Math.round(nonVegSharePerPerson),
+    vegShare: vegSharePerPerson,
+    nonVegShare: nonVegSharePerPerson,
     details
   };
 };

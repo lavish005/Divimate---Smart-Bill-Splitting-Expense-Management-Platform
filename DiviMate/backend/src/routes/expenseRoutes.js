@@ -3,6 +3,7 @@ import {
   addExpense,
   getGroupExpenses,
   calculateSplit,
+  getGroupChartData,
 } from "../controllers/expenseController.js";
 import authMiddleware from "../middleware/authMiddleware.js"; // ✅ correct import
 
@@ -12,5 +13,6 @@ const router = express.Router();
 router.post("/add", authMiddleware, addExpense);
 router.get("/group/:groupId", authMiddleware, getGroupExpenses);
 router.post("/split", authMiddleware, calculateSplit);
+router.get("/group/:groupId/chart-data", authMiddleware, getGroupChartData);
 
 export default router;

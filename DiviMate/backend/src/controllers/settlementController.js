@@ -12,6 +12,13 @@ export const createSettlement = async (req, res) => {
     const { groupId, to, amount, expenseId, method } = req.body;
     const from = req.user.id; // logged-in user
 
+    console.log("\n💳 [CREATE SETTLEMENT] Request received");
+    console.log("👤 From:", req.user.name);
+    console.log("👤 To:", to);
+    console.log("💰 Amount: ₹", amount);
+    console.log("📋 Method:", method || "manual");
+    console.log("⏰ Timestamp:", new Date().toISOString());
+
     if (!groupId || !to || !amount) {
       return res.status(400).json({ msg: "groupId, to, and amount are required" });
     }
@@ -34,7 +41,15 @@ export const createSettlement = async (req, res) => {
         .json({ msg: "Both payer and receiver must be members of the group" });
     }
 
+    const fromMember = group.members.find(
+      (m) => m.userId.toString() === from.toString()
+    );
+    if (fromMember?.blocked) {
+      return res.status(403).json({ msg: "You are blocked in this group" });
+    }
+
     // 3️⃣ Create settlement record
+    console.log("💾 Creating settlement record...");
     const settlement = await Settlement.create({
       group: groupId,
       expense: expenseId || null,
@@ -55,9 +70,13 @@ export const createSettlement = async (req, res) => {
         "payment",
         req.io
       );
+      console.log("🔔 [NOTIFICATION SENT] Settlement notification sent to receiver");
     } catch (err) {
       console.error("⚠️ Notification for settlement failed:", err.message);
     }
+
+    console.log("✅ [SETTLEMENT CREATED] ID:", settlement._id);
+    console.log("==========================================\n");
 
     return res.status(201).json({
       msg: "Settlement recorded successfully",
@@ -74,11 +93,15 @@ export const getGroupSettlements = async (req, res) => {
   try {
     const { groupId } = req.params;
 
+    console.log("\n📋 [GET GROUP SETTLEMENTS] Group:", groupId, "User:", req.user.name);
+
     const settlements = await Settlement.find({ group: groupId })
       .populate("from", "name email")
       .populate("to", "name email")
       .populate("expense", "title amount")
       .sort({ createdAt: -1 });
+
+    console.log("✅ [SETTLEMENTS FETCHED] Count:", settlements.length);
 
     return res.json(settlements);
   } catch (err) {
@@ -92,6 +115,8 @@ export const getMySettlements = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    console.log("\n🔍 [GET MY SETTLEMENTS] User:", req.user.name);
+
     const settlements = await Settlement.find({
       $or: [{ from: userId }, { to: userId }],
     })
@@ -99,6 +124,8 @@ export const getMySettlements = async (req, res) => {
       .populate("from", "name email")
       .populate("to", "name email")
       .sort({ createdAt: -1 });
+
+    console.log("✅ [MY SETTLEMENTS FETCHED] Count:", settlements.length);
 
     return res.json(settlements);
   } catch (err) {
