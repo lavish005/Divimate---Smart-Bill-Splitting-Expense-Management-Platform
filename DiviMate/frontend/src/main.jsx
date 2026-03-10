@@ -16,10 +16,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Toaster
             position="top-right"
             toastOptions={{
+              className: "",
               style: {
-                background: "var(--bg-card)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
+                background: "hsl(var(--card))",
+                color: "hsl(var(--card-foreground))",
+                border: "1px solid hsl(var(--border))",
               },
             }}
           />

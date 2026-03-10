@@ -9,17 +9,27 @@ import {
   updatePhone,
 } from "../services/api";
 import {
-  FiUser,
-  FiMail,
-  FiCopy,
-  FiCheck,
-  FiCamera,
-  FiPhone,
-  FiMapPin,
-  FiCalendar,
-} from "react-icons/fi";
+  User,
+  Mail,
+  Copy,
+  Check,
+  Camera,
+  Phone,
+  MapPin,
+  Calendar,
+  Lock,
+  Smartphone,
+  Utensils
+} from "lucide-react";
 import toast from "react-hot-toast";
-import "../styles/profile.css";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator"; // need to create or use div
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const BACKEND = "http://localhost:5000";
 
@@ -178,279 +188,250 @@ const Profile = () => {
     }
   };
 
-  if (!user) return <div className="page-loader">Loading profile...</div>;
+  if (!user) return <div className="space-y-6"><Skeleton className="h-40 w-full" /><Skeleton className="h-96 w-full" /></div>;
 
   const avatarSrc = user.avatar ? `${BACKEND}${user.avatar}` : null;
 
   return (
-    <div className="profile-page">
-      <h1 className="page-title">
-        <FiUser /> My Profile
-      </h1>
+    <div className="max-w-4xl mx-auto space-y-8 pb-10 animate-in fade-in duration-500">
+      <div className="flex flex-col items-center sm:items-start gap-4">
+        <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
+        <p className="text-muted-foreground">Manage your personal information and account settings.</p>
+      </div>
 
-      <div className="profile-card">
-        <div className="profile-avatar-wrapper">
-          {avatarSrc ? (
-            <img src={avatarSrc} alt="Avatar" className="profile-avatar-img" />
-          ) : (
-            <div className="profile-avatar">
-              {user.name?.charAt(0)?.toUpperCase()}
-            </div>
-          )}
-          <label className="avatar-upload-btn" title="Change photo">
-            {avatarLoading ? <span className="spinner" /> : <FiCamera />}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarChange}
-              hidden
-            />
-          </label>
+      <div className="grid gap-8 md:grid-cols-12">
+        {/* Sidebar / Main Info */}
+        <div className="md:col-span-4 space-y-6">
+          <Card className="overflow-hidden">
+            <div className="h-24 bg-gradient-to-r from-primary/20 to-secondary/20" />
+            <CardContent className="pt-0 relative px-6">
+              <div className="flex justify-center sm:justify-start -mt-12 mb-4">
+                <div className="relative">
+                  <Avatar className="h-24 w-24 border-4 border-background shadow-md">
+                    <AvatarImage src={avatarSrc} className="object-cover" />
+                    <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+                      {user.name?.charAt(0)?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <label className="absolute bottom-0 right-0 p-1.5 bg-primary text-primary-foreground rounded-full shadow-lg cursor-pointer hover:bg-primary/90 transition-colors">
+                    {avatarLoading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Camera className="h-4 w-4" />}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      hidden
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="text-center sm:text-left space-y-1 mb-6">
+                <h2 className="text-2xl font-bold">{user.name}</h2>
+                <p className="text-muted-foreground flex items-center justify-center sm:justify-start gap-1.5">
+                  <Mail className="h-3.5 w-3.5" /> {user.email}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Utensils className="h-4 w-4 text-muted-foreground" />
+                    <span>Dietary Preference</span>
+                  </div>
+                  <Button
+                    variant={user.dietType === "Veg" ? "outline" : "destructive"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleDietToggle}
+                    disabled={dietLoading}
+                  >
+                    {user.dietType || "Select"}
+                  </Button>
+                </div>
+
+                <div className="p-3 bg-muted/40 rounded-lg space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground uppercase">DiviMate ID</div>
+                  <div className="flex items-center gap-2">
+                    <code className="bg-background px-2 py-1 rounded border text-xs flex-1 truncate font-mono">
+                      {userId}
+                    </code>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCopy}>
+                      {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Share this ID so friends can add you.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="profile-info">
-          <div className="profile-row">
-            <label>Name</label>
-            <p>{user.name}</p>
-          </div>
+        {/* Forms */}
+        <div className="md:col-span-8 space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Personal Information</CardTitle>
+              <CardDescription>Update your personal details here.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleProfileSave} className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Full Name</Label>
+                    <Input
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm(p => ({ ...p, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Date of Birth</Label>
+                    <Input
+                      type="date"
+                      value={profileForm.dob}
+                      onChange={(e) => setProfileForm(p => ({ ...p, dob: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Gender</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      value={profileForm.gender}
+                      onChange={(e) => setProfileForm(p => ({ ...p, gender: e.target.value }))}
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    <Input
+                      value={profileForm.city}
+                      onChange={(e) => setProfileForm(p => ({ ...p, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Address</Label>
+                    <Input
+                      className="mb-2"
+                      placeholder="Line 1"
+                      value={profileForm.addressLine1}
+                      onChange={(e) => setProfileForm(p => ({ ...p, addressLine1: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Line 2"
+                      value={profileForm.addressLine2}
+                      onChange={(e) => setProfileForm(p => ({ ...p, addressLine2: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>State</Label>
+                    <Input
+                      value={profileForm.state}
+                      onChange={(e) => setProfileForm(p => ({ ...p, state: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Postal Code</Label>
+                    <Input
+                      value={profileForm.postalCode}
+                      onChange={(e) => setProfileForm(p => ({ ...p, postalCode: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="pt-4 flex justify-end">
+                  <Button type="submit" disabled={profileSaving}>
+                    {profileSaving && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+                    Save Details
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
 
-          <div className="profile-row">
-            <label>
-              <FiMail size={14} /> Email
-            </label>
-            <p>{user.email}</p>
-          </div>
+          <div className="grid gap-8 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Update Email</CardTitle>
+                <CardDescription>Change your login email address.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleEmailUpdate} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>New Email</Label>
+                    <Input
+                      type="email"
+                      value={emailForm.newEmail}
+                      onChange={(e) => setEmailForm(p => ({ ...p, newEmail: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Current Password</Label>
+                    <Input
+                      type="password"
+                      value={emailForm.currentPassword}
+                      onChange={(e) => setEmailForm(p => ({ ...p, currentPassword: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" variant="secondary" className="w-full" disabled={emailSaving}>
+                    {emailSaving ? "Updating..." : "Update Email"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
 
-          <div className="profile-row">
-            <label>
-              <FiPhone size={14} /> Phone
-            </label>
-            <p>{user.phone || "Not set"}</p>
-            <span className={`status-chip ${user.phoneVerified ? "verified" : "unverified"}`}>
-              {user.phoneVerified ? "Verified" : "Unverified"}
-            </span>
-          </div>
-
-          <div className="profile-row">
-            <label>Diet Type</label>
-            <div className="diet-toggle-row">
-              <span className={`diet-badge ${user.dietType === "Veg" ? "veg" : "nonveg"}`}>
-                {user.dietType || "Not set"}
-              </span>
-              <button
-                className="btn-secondary btn-sm"
-                onClick={handleDietToggle}
-                disabled={dietLoading}
-              >
-                Switch to {user.dietType === "Veg" ? "Non-Veg" : "Veg"}
-              </button>
-            </div>
-          </div>
-
-          <div className="profile-row divimate-id-row">
-            <label>DiviMate ID</label>
-            <div className="id-box">
-              <code>{userId}</code>
-              <button
-                className="copy-btn"
-                onClick={handleCopy}
-                title="Copy ID"
-              >
-                {copied ? <FiCheck className="green" /> : <FiCopy />}
-              </button>
-            </div>
-            <p className="id-hint">
-              Share this ID so friends can add you to groups
-            </p>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Phone Verification</CardTitle>
+                <CardDescription>
+                  {user.phoneVerified ? (
+                    <span className="text-emerald-600 flex items-center gap-1 font-medium"><Check className="h-4 w-4" /> Phone Verified</span>
+                  ) : (
+                    <span className="text-rose-600 font-medium">Unverified</span>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handlePhoneUpdate} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <Input
+                      type="tel"
+                      placeholder="+91..."
+                      value={phoneForm.phone}
+                      onChange={(e) => setPhoneForm(p => ({ ...p, phone: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      className="flex-1"
+                      placeholder="Enter OTP"
+                      value={phoneForm.otp}
+                      onChange={(e) => setPhoneForm(p => ({ ...p, otp: e.target.value }))}
+                      disabled={!otpSending && !phoneForm.otp} // Allow typing if field is empty or after sending? Logic is fine as is
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSendPhoneOtp}
+                      disabled={otpSending}
+                    >
+                      {otpSending ? "Sending..." : "Get OTP"}
+                    </Button>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={phoneSaving}>
+                    {phoneSaving ? "Verifying..." : "Verify & Save"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         </div>
-      </div>
-
-      <div className="profile-card profile-form-card">
-        <h2 className="profile-section-title">Personal Details</h2>
-        <form className="profile-form" onSubmit={handleProfileSave}>
-          <div className="profile-grid">
-            <div className="profile-field">
-              <label>Full Name</label>
-              <input
-                type="text"
-                value={profileForm.name}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field">
-              <label>
-                <FiCalendar size={14} /> Date of Birth
-              </label>
-              <input
-                type="date"
-                value={profileForm.dob}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, dob: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field">
-              <label>Gender</label>
-              <select
-                value={profileForm.gender}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, gender: e.target.value }))
-                }
-              >
-                <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-                <option value="Prefer not to say">Prefer not to say</option>
-              </select>
-            </div>
-            <div className="profile-field full">
-              <label>
-                <FiMapPin size={14} /> Address Line 1
-              </label>
-              <input
-                type="text"
-                value={profileForm.addressLine1}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, addressLine1: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field full">
-              <label>Address Line 2</label>
-              <input
-                type="text"
-                value={profileForm.addressLine2}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, addressLine2: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field">
-              <label>City</label>
-              <input
-                type="text"
-                value={profileForm.city}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, city: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field">
-              <label>State</label>
-              <input
-                type="text"
-                value={profileForm.state}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, state: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field">
-              <label>Postal Code</label>
-              <input
-                type="text"
-                value={profileForm.postalCode}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, postalCode: e.target.value }))
-                }
-              />
-            </div>
-            <div className="profile-field">
-              <label>Country</label>
-              <input
-                type="text"
-                value={profileForm.country}
-                onChange={(e) =>
-                  setProfileForm((prev) => ({ ...prev, country: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <button className="btn-primary" type="submit" disabled={profileSaving}>
-            {profileSaving ? <span className="spinner" /> : "Save Details"}
-          </button>
-        </form>
-      </div>
-
-      <div className="profile-card profile-form-card">
-        <h2 className="profile-section-title">Update Email</h2>
-        <form className="profile-form" onSubmit={handleEmailUpdate}>
-          <div className="profile-grid">
-            <div className="profile-field">
-              <label>New Email</label>
-              <input
-                type="email"
-                value={emailForm.newEmail}
-                onChange={(e) =>
-                  setEmailForm((prev) => ({ ...prev, newEmail: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="profile-field">
-              <label>Current Password</label>
-              <input
-                type="password"
-                value={emailForm.currentPassword}
-                onChange={(e) =>
-                  setEmailForm((prev) => ({ ...prev, currentPassword: e.target.value }))
-                }
-                required
-              />
-            </div>
-          </div>
-          <button className="btn-secondary" type="submit" disabled={emailSaving}>
-            {emailSaving ? <span className="spinner" /> : "Update Email"}
-          </button>
-        </form>
-      </div>
-
-      <div className="profile-card profile-form-card">
-        <h2 className="profile-section-title">Verify Phone Number</h2>
-        <form className="profile-form" onSubmit={handlePhoneUpdate}>
-          <div className="profile-grid">
-            <div className="profile-field">
-              <label>Phone Number</label>
-              <input
-                type="tel"
-                placeholder="+919876543210"
-                value={phoneForm.phone}
-                onChange={(e) =>
-                  setPhoneForm((prev) => ({ ...prev, phone: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="profile-field">
-              <label>OTP (sent to email)</label>
-              <input
-                type="text"
-                value={phoneForm.otp}
-                onChange={(e) =>
-                  setPhoneForm((prev) => ({ ...prev, otp: e.target.value }))
-                }
-                required
-              />
-            </div>
-          </div>
-          <div className="profile-actions">
-            <button
-              className="btn-outline"
-              type="button"
-              onClick={handleSendPhoneOtp}
-              disabled={otpSending}
-            >
-              {otpSending ? <span className="spinner" /> : "Send OTP"}
-            </button>
-            <button className="btn-primary" type="submit" disabled={phoneSaving}>
-              {phoneSaving ? <span className="spinner" /> : "Verify & Save"}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

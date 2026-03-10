@@ -8,7 +8,18 @@ export const ThemeProvider = ({ children }) => {
   });
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
+    const root = document.documentElement;
+    
+    // Remove both classes first
+    root.classList.remove("light", "dark");
+    
+    // Add the current theme class (Tailwind uses .dark class)
+    root.classList.add(theme);
+    
+    // Also set data-theme for any CSS that uses it
+    root.setAttribute("data-theme", theme);
+    
+    // Save to localStorage
     localStorage.setItem("divimate-theme", theme);
   }, [theme]);
 

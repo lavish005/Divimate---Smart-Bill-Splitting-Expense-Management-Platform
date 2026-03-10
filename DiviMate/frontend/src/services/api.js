@@ -44,6 +44,7 @@ export const searchUserByEmail = (email) => API.get(`/groups/search-user?email=$
 export const addExpense = (data) => API.post("/expenses/add", data);
 export const getGroupExpenses = (groupId) => API.get(`/expenses/group/${groupId}`);
 export const getGroupChartData = (groupId) => API.get(`/expenses/group/${groupId}/chart-data`);
+export const getGroupBalances = (groupId) => API.get(`/expenses/group/${groupId}/balances`);
 
 // ── Settlements ──
 export const createSettlement = (data) => API.post("/settlements/create", data);

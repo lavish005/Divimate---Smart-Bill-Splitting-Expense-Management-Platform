@@ -1,25 +1,22 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { getNotifications, markNotificationsRead } from "../services/api";
-import { motion, AnimatePresence } from "framer-motion";
-import { FiBell, FiX, FiCheckCircle } from "react-icons/fi";
-import "../styles/notifications.css";
+import { Bell, Check, X, Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
 
 const Notifications = () => {
   const [notes, setNotes] = useState([]);
   const [open, setOpen] = useState(false);
-  const wrapperRef = useRef(null);
-  const unread = notes.filter((n) => !n.isRead).length;
+  const [loading, setLoading] = useState(false);
 
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const unread = notes.filter((n) => !n.isRead).length;
 
   const fetchNotes = async () => {
     try {
@@ -37,69 +34,76 @@ const Notifications = () => {
   }, []);
 
   const handleMarkRead = async () => {
+    setLoading(true);
     try {
       await markNotificationsRead();
       setNotes((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch {
       // silent
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="notif-wrapper" ref={wrapperRef}>
-      <button className="notif-bell" onClick={() => setOpen(!open)}>
-        <FiBell />
-        {unread > 0 && <span className="notif-badge">{unread}</span>}
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="notif-panel"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-          >
-            <div className="notif-header">
-              <h3>Notifications</h3>
-              <div className="notif-header-actions">
-                {unread > 0 && (
-                  <button className="mark-read-btn" onClick={handleMarkRead}>
-                    <FiCheckCircle /> Mark all read
-                  </button>
-                )}
-                <button className="close-btn" onClick={() => setOpen(false)}>
-                  <FiX />
-                </button>
-              </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full">
+          <Bell className="h-4 w-4" />
+          {unread > 0 && (
+            <span className="absolute top-1 right-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-destructive ring-1 ring-background" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="end">
+        <div className="flex items-center justify-between p-4 pb-2">
+          <h4 className="font-semibold leading-none">Notifications</h4>
+          {unread > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto px-2 text-xs text-primary hover:text-primary/80"
+              onClick={handleMarkRead}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="mr-1 h-3 w-3" />}
+              Mark all read
+            </Button>
+          )}
+        </div>
+        <Separator />
+        <ScrollArea className="h-[300px]">
+          {notes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
+              <Bell className="h-8 w-8 mb-2 opacity-20" />
+              <p className="text-sm">No notifications</p>
             </div>
-
-            <div className="notif-list">
-              {notes.length === 0 ? (
-                <p className="notif-empty">No notifications</p>
-              ) : (
-                notes.map((n) => (
-                  <div
-                    key={n._id}
-                    className={`notif-item ${n.isRead ? "" : "unread"}`}
-                  >
-                    <p>{n.message}</p>
-                    <span className="notif-time">
-                      {new Date(n.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                ))
-              )}
+          ) : (
+            <div className="grid">
+              {notes.map((n) => (
+                <div
+                  key={n._id}
+                  className={cn(
+                    "flex flex-col gap-1 p-4 text-sm border-b last:border-0 hover:bg-muted/50 transition-colors",
+                    !n.isRead && "bg-primary/5 border-l-2 border-l-primary leading-none"
+                  )}
+                >
+                  <p className={cn("leading-snug", !n.isRead && "font-medium")}>{n.message}</p>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(n.createdAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              ))}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   );
 };
 

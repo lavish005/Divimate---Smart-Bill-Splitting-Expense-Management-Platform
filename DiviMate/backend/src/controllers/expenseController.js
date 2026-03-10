@@ -331,3 +331,137 @@ export const getGroupChartData = async (req, res) => {
     res.status(500).json({ msg: "Error fetching group chart data" });
   }
 };
+
+// ======================================================================
+// GET GROUP BALANCES – Who owes whom (net balances after settlements)
+// ======================================================================
+import Settlement from "../models/Settlement.js";
+
+export const getGroupBalances = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    console.log("\n💰 [GET BALANCES] Group:", groupId, "User:", req.user.name);
+
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ msg: "Group not found" });
+
+    const isMember = group.members.some(
+      (m) => m.userId.toString() === req.user.id
+    );
+    if (!isMember) {
+      return res.status(403).json({ msg: "You are not a member of this group" });
+    }
+
+    // 1️⃣ Get all expenses
+    const expenses = await Expense.find({ group: groupId })
+      .populate("paidBy", "name")
+      .populate("participants.userId", "name");
+
+    // 2️⃣ Get all settlements
+    const settlements = await Settlement.find({ group: groupId });
+
+    // 3️⃣ Create a map of member IDs to names
+    const memberNames = {};
+    group.members.forEach((m) => {
+      memberNames[m.userId.toString()] = m.name;
+    });
+
+    // 4️⃣ Calculate net balances (pairwise debts)
+    // balances[debtor][creditor] = amount debtor owes creditor
+    const pairwiseDebts = {};
+
+    // Initialize all pairs
+    group.members.forEach((m1) => {
+      const id1 = m1.userId.toString();
+      pairwiseDebts[id1] = {};
+      group.members.forEach((m2) => {
+        const id2 = m2.userId.toString();
+        if (id1 !== id2) {
+          pairwiseDebts[id1][id2] = 0;
+        }
+      });
+    });
+
+    // Process expenses - each participant owes the payer their share
+    for (const expense of expenses) {
+      const payerId = expense.paidBy?._id?.toString() || expense.paidBy?.toString();
+      
+      for (const p of expense.participants) {
+        const participantId = p.userId?._id?.toString() || p.userId?.toString();
+        
+        if (participantId && payerId && participantId !== payerId) {
+          // Each participant owes the payer their share
+          if (pairwiseDebts[participantId] && pairwiseDebts[participantId][payerId] !== undefined) {
+            pairwiseDebts[participantId][payerId] += p.share;
+          }
+        }
+      }
+    }
+
+    // Process settlements - reduce debts
+    for (const settlement of settlements) {
+      const fromId = settlement.from.toString();
+      const toId = settlement.to.toString();
+      
+      if (pairwiseDebts[fromId] && pairwiseDebts[fromId][toId] !== undefined) {
+        pairwiseDebts[fromId][toId] -= settlement.amount;
+      }
+    }
+
+    // 5️⃣ Simplify debts - net out bidirectional debts
+    const simplifiedDebts = [];
+    const processed = new Set();
+
+    for (const debtor of Object.keys(pairwiseDebts)) {
+      for (const creditor of Object.keys(pairwiseDebts[debtor])) {
+        const pairKey = [debtor, creditor].sort().join("-");
+        if (processed.has(pairKey)) continue;
+        processed.add(pairKey);
+
+        const debtorOwes = pairwiseDebts[debtor][creditor] || 0;
+        const creditorOwes = pairwiseDebts[creditor]?.[debtor] || 0;
+        const netAmount = debtorOwes - creditorOwes;
+
+        if (Math.abs(netAmount) > 0.01) {
+          if (netAmount > 0) {
+            simplifiedDebts.push({
+              from: debtor,
+              fromName: memberNames[debtor],
+              to: creditor,
+              toName: memberNames[creditor],
+              amount: Math.round(netAmount * 100) / 100,
+            });
+          } else {
+            simplifiedDebts.push({
+              from: creditor,
+              fromName: memberNames[creditor],
+              to: debtor,
+              toName: memberNames[debtor],
+              amount: Math.round(Math.abs(netAmount) * 100) / 100,
+            });
+          }
+        }
+      }
+    }
+
+    // 6️⃣ For current user - what they owe and what they're owed
+    const currentUserId = req.user.id;
+    const youOwe = simplifiedDebts.filter((d) => d.from === currentUserId);
+    const youAreOwed = simplifiedDebts.filter((d) => d.to === currentUserId);
+
+    console.log("✅ [BALANCES CALCULATED]");
+    console.log("   You owe:", youOwe.length, "people");
+    console.log("   You are owed by:", youAreOwed.length, "people");
+
+    res.json({
+      allBalances: simplifiedDebts,
+      youOwe,
+      youAreOwed,
+      memberNames,
+    });
+  } catch (error) {
+    console.error("❌ Get balances error:", error.message);
+    res.status(500).json({ msg: "Error calculating balances" });
+  }
+};

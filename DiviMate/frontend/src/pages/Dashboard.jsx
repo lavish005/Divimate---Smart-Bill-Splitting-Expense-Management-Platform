@@ -1,18 +1,16 @@
 import { useState, useEffect } from "react";
 import { getDashboard, getDashboardChartData } from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { motion } from "framer-motion";
 import {
-  FiDollarSign,
-  FiArrowDownLeft,
-  FiArrowUpRight,
-  FiClock,
-  FiTrendingUp,
-  FiBarChart2,
-  FiPieChart,
-  FiArrowDown,
-  FiArrowUp,
-} from "react-icons/fi";
+  DollarSign,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Clock,
+  TrendingUp,
+  PieChart as PieChartIcon,
+  BarChart2,
+  Calendar
+} from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -28,18 +26,18 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import "../styles/dashboard.css";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-const CHART_COLORS = ["#6c5ce7", "#00cec9", "#ff6b6b", "#fdcb6e", "#a29bfe", "#55efc4"];
-const LINE_COLORS = { spent: "#6c5ce7", owe: "#ff6b6b", getback: "#00cec9" };
-
-const MultiLineTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="chart-tooltip">
-        <p className="chart-tooltip-label">{label}</p>
+      <div className="rounded-lg border bg-background p-2 shadow-sm">
+        <p className="text-sm font-semibold text-foreground">{label}</p>
         {payload.map((p) => (
-          <p key={p.dataKey} style={{ color: p.color, fontSize: "0.85rem", margin: "2px 0" }}>
+          <p key={p.dataKey} style={{ color: p.color }} className="text-xs">
             {p.dataKey === "spent" ? "Spent" : p.dataKey === "owe" ? "You Owe" : "Get Back"}: ₹{p.value.toFixed(2)}
           </p>
         ))}
@@ -75,13 +73,28 @@ const Dashboard = () => {
     fetchAll();
   }, []);
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="page-loader">
-        <div className="loader-spinner" />
-        <p>Loading dashboard...</p>
+      <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-[250px]" />
+            <Skeleton className="h-4 w-[200px]" />
+          </div>
+          <Skeleton className="h-10 w-[120px]" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-7">
+          <Skeleton className="col-span-4 h-[350px] rounded-xl" />
+          <Skeleton className="col-span-3 h-[350px] rounded-xl" />
+        </div>
       </div>
     );
+  }
 
   const { totals, transactionHistory } = data || {};
   const { weeklyData, monthlyData, summaryData } = chartData || {};
@@ -90,297 +103,291 @@ const Dashboard = () => {
 
   const sortedTransactions = [...(transactionHistory || [])].sort((a, b) => {
     switch (sortBy) {
-      case "date-asc":
-        return new Date(a.createdAt) - new Date(b.createdAt);
-      case "date-desc":
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      case "amount-high":
-        return b.amount - a.amount;
-      case "amount-low":
-        return a.amount - b.amount;
-      case "balance-high":
-        return b.balance - a.balance;
-      case "balance-low":
-        return a.balance - b.balance;
-      default:
-        return 0;
+      case "date-asc": return new Date(a.createdAt) - new Date(b.createdAt);
+      case "date-desc": return new Date(b.createdAt) - new Date(a.createdAt);
+      case "amount-high": return b.amount - a.amount;
+      case "amount-low": return a.amount - b.amount;
+      case "balance-high": return b.balance - a.balance;
+      case "balance-low": return a.balance - b.balance;
+      default: return 0;
     }
   });
 
   return (
-    <div className="dashboard-page">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
-        {/* Header */}
-        <div className="dash-header">
-          <div>
-            <h1 className="page-title">
-              Hey, {user?.name || "there"} <span className="wave">👋</span>
-            </h1>
-            <p className="dash-subtitle">Here's your spending overview</p>
-          </div>
-          <div className={`net-badge ${netBalance >= 0 ? "positive" : "negative"}`}>
-            {netBalance >= 0 ? "+" : ""}₹{Math.abs(netBalance).toFixed(2)} net
-          </div>
+    <div className="space-y-6 pb-10">
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Overview
+          </h1>
+          <p className="text-muted-foreground">
+            Welcome back, {user?.name}. Here's your financial summary.
+          </p>
         </div>
-
-        {/* Stat Cards */}
-        <div className="stats-grid">
-          <motion.div
-            className="stat-card spent"
-            whileHover={{ y: -4 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <div className="stat-icon-wrap spent">
-              <FiDollarSign />
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">Total Spent</span>
-              <span className="stat-value">₹{totals?.totalSpent?.toFixed(2) || "0.00"}</span>
-            </div>
-            <div className="stat-glow spent" />
-          </motion.div>
-
-          <motion.div
-            className="stat-card owe"
-            whileHover={{ y: -4 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <div className="stat-icon-wrap owe">
-              <FiArrowDownLeft />
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">You Owe</span>
-              <span className="stat-value red">₹{totals?.totalOwe?.toFixed(2) || "0.00"}</span>
-            </div>
-            <div className="stat-glow owe" />
-          </motion.div>
-
-          <motion.div
-            className="stat-card getback"
-            whileHover={{ y: -4 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <div className="stat-icon-wrap getback">
-              <FiArrowUpRight />
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">You Get Back</span>
-              <span className="stat-value green">₹{totals?.totalGetBack?.toFixed(2) || "0.00"}</span>
-            </div>
-            <div className="stat-glow getback" />
-          </motion.div>
+        <div className={cn(
+          "inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          netBalance >= 0
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+        )}>
+          {netBalance >= 0 ? "+" : ""}₹{Math.abs(netBalance).toFixed(2)} Net Balance
         </div>
+      </div>
 
-        {/* Charts Section */}
-        <div className="charts-section">
-          <div className="chart-card main-chart">
-            <div className="chart-header">
-              <div className="chart-title-row">
-                <FiTrendingUp className="chart-title-icon" />
-                <h3>Spending Trend</h3>
-              </div>
-              <div className="chart-toggle">
-                <button
-                  className={`toggle-btn ${chartView === "weekly" ? "active" : ""}`}
-                  onClick={() => setChartView("weekly")}
-                >
-                  Weekly
-                </button>
-                <button
-                  className={`toggle-btn ${chartView === "monthly" ? "active" : ""}`}
-                  onClick={() => setChartView("monthly")}
-                >
-                  Monthly
-                </button>
-              </div>
+      {/* Stat Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Spent</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <DollarSign className="h-4 w-4" />
             </div>
-            <div className="chart-body">
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{totals?.totalSpent?.toFixed(2) || "0.00"}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Across all groups
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">You Owe</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500">
+              <ArrowDownLeft className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">₹{totals?.totalOwe?.toFixed(2) || "0.00"}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              To friends
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">You Get Back</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+              <ArrowUpRight className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">₹{totals?.totalGetBack?.toFixed(2) || "0.00"}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              From settlements
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid gap-4 md:grid-cols-7">
+        {/* Main Chart */}
+        <Card className="col-span-4">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Spending Activity
+              </CardTitle>
+              <CardDescription>Visual breakdown of your expenses</CardDescription>
+            </div>
+            <div className="flex items-center rounded-lg border bg-muted p-1 text-muted-foreground">
+              <button
+                onClick={() => setChartView("weekly")}
+                className={cn(
+                  "rounded-md px-2 py-1 text-xs font-medium transition-all",
+                  chartView === "weekly" && "bg-background text-foreground shadow-sm"
+                )}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setChartView("monthly")}
+                className={cn(
+                  "rounded-md px-2 py-1 text-xs font-medium transition-all",
+                  chartView === "monthly" && "bg-background text-foreground shadow-sm"
+                )}
+              >
+                Monthly
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="pl-0">
+            <div className="h-[300px] w-full">
               {chartView === "weekly" ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={weeklyData || []}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={weeklyData || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gradSpent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6c5ce7" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#6c5ce7" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gradOwe" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ff6b6b" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#ff6b6b" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gradGetback" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#00cec9" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#00cec9" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="day" stroke="#8b8fa3" fontSize={12} tickLine={false} />
-                    <YAxis stroke="#8b8fa3" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip content={<MultiLineTooltip />} />
-                    <Legend
-                      verticalAlign="top"
-                      height={32}
-                      formatter={(v) => v === "spent" ? "Spent" : v === "owe" ? "You Owe" : "Get Back"}
-                    />
-                    <Area type="monotone" dataKey="spent" stroke="#6c5ce7" strokeWidth={2} fillOpacity={1} fill="url(#gradSpent)" dot={{ r: 3 }} />
-                    <Area type="monotone" dataKey="owe" stroke="#ff6b6b" strokeWidth={2} fillOpacity={1} fill="url(#gradOwe)" dot={{ r: 3 }} />
-                    <Area type="monotone" dataKey="getback" stroke="#00cec9" strokeWidth={2} fillOpacity={1} fill="url(#gradGetback)" dot={{ r: 3 }} />
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} vertical={false} />
+                    <XAxis dataKey="day" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="spent" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#gradSpent)" />
+                    <Area type="monotone" dataKey="owe" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#gradOwe)" />
+                    <Area type="monotone" dataKey="getback" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#gradGetback)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={monthlyData || []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="month" stroke="#8b8fa3" fontSize={12} tickLine={false} />
-                    <YAxis stroke="#8b8fa3" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip content={<MultiLineTooltip />} />
-                    <Legend
-                      verticalAlign="top"
-                      height={32}
-                      formatter={(v) => v === "spent" ? "Spent" : v === "owe" ? "You Owe" : "Get Back"}
-                    />
-                    <Bar dataKey="spent" fill="#6c5ce7" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                    <Bar dataKey="owe" fill="#ff6b6b" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                    <Bar dataKey="getback" fill="#00cec9" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} vertical={false} />
+                    <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="spent" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="owe" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="getback" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Summary Pie Chart */}
-          {summaryData && summaryData.length > 0 && (
-            <div className="chart-card side-chart">
-              <div className="chart-header">
-                <div className="chart-title-row">
-                  <FiPieChart className="chart-title-icon" />
-                  <h3>Overview</h3>
-                </div>
-              </div>
-              <div className="chart-body pie-body">
-                <ResponsiveContainer width="100%" height={220}>
+        {/* Overview Chart */}
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4 text-primary" />
+              Distribution
+            </CardTitle>
+            <CardDescription>Spending vs Income split</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[250px] w-full flex items-center justify-center">
+              {summaryData && summaryData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={summaryData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={3}
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={4}
                       dataKey="value"
+                      stroke="none"
                     >
                       {summaryData.map((entry, i) => (
                         <Cell
                           key={i}
                           fill={
-                            entry.name === "Your Spending" ? "#6c5ce7" :
-                            entry.name === "You Owe" ? "#ff6b6b" : "#00cec9"
+                            entry.name === "Your Spending" ? "#8b5cf6" :
+                              entry.name === "You Owe" ? "#f43f5e" : "#10b981"
                           }
                         />
                       ))}
                     </Pie>
                     <Tooltip
                       formatter={(val) => `₹${val.toFixed(2)}`}
-                      contentStyle={{
-                        background: "#1a1d28",
-                        border: "1px solid #2a2e3f",
-                        borderRadius: "8px",
-                        fontSize: "0.85rem",
-                      }}
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    />
+                    <Legend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      align="center"
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="pie-legend">
-                  {summaryData.map((item) => (
-                    <div key={item.name} className="pie-legend-item">
-                      <span
-                        className="pie-dot"
-                        style={{
-                          background:
-                            item.name === "Your Spending" ? "#6c5ce7" :
-                            item.name === "You Owe" ? "#ff6b6b" : "#00cec9"
-                        }}
-                      />
-                      <span className="pie-label">{item.name}</span>
-                      <span className="pie-val">₹{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ) : (
+                <div className="text-center text-muted-foreground text-sm">No data available</div>
+              )}
             </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Recent Transactions */}
-        <div className="section-header">
-          <FiClock />
-          <h2>Recent Transactions</h2>
-          <span className="section-count">{transactionHistory?.length || 0}</span>
-          <div className="sort-controls">
-            <span className="sort-label">Sort by</span>
+      {/* Recent Transactions */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
+              Recent Transactions
+            </CardTitle>
+            <CardDescription>
+              {transactionHistory?.length || 0} transactions in total
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline-block">Sort by:</span>
             <select
-              className="sort-select"
+              className="h-8 w-[140px] rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
             >
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
-              <option value="amount-high">Amount: High → Low</option>
-              <option value="amount-low">Amount: Low → High</option>
-              <option value="balance-high">Balance: High → Low</option>
-              <option value="balance-low">Balance: Low → High</option>
+              <option value="amount-high">Amt: High-Low</option>
+              <option value="amount-low">Amt: Low-High</option>
             </select>
           </div>
-        </div>
-
-        {sortedTransactions.length ? (
-          <div className="transaction-list">
-            {sortedTransactions.map((tx, idx) => (
-              <motion.div
-                key={tx.expenseId}
-                className="transaction-card"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.03 }}
-              >
-                <div className="tx-icon-wrap">
-                  <FiDollarSign />
-                </div>
-                <div className="tx-left">
-                  <h4>{tx.title}</h4>
-                  <div className="tx-meta">
-                    <span className="tx-group-badge">{tx.group || "Unknown group"}</span>
-                    <span className="tx-date">
-                      {new Date(tx.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+        </CardHeader>
+        <CardContent>
+          {sortedTransactions.length > 0 ? (
+            <div className="space-y-4">
+              {sortedTransactions.map((tx) => (
+                <div key={tx.expenseId} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors gap-3">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none">{tx.title}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center rounded-md bg-secondary px-2 py-0.5 font-medium text-secondary-foreground">
+                          {tx.group || "Personal"}
+                        </span>
+                        <span>
+                          {new Date(tx.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right w-full sm:w-auto flex flex-row sm:flex-col justify-between items-center sm:items-end">
+                    <span className="font-bold text-sm">₹{tx.amount?.toFixed(2)}</span>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      tx.balance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                    )}>
+                      {tx.balance >= 0 ? "+" : "-"}₹{Math.abs(tx.balance).toFixed(2)}
                     </span>
                   </div>
                 </div>
-                <div className="tx-right">
-                  <p className="tx-amount">₹{tx.amount?.toFixed(2)}</p>
-                  <p className={`tx-balance ${tx.balance >= 0 ? "green" : "red"}`}>
-                    {tx.balance >= 0
-                      ? `+₹${tx.balance.toFixed(2)}`
-                      : `-₹${Math.abs(tx.balance).toFixed(2)}`}
-                  </p>
-                  {tx.paidBy && <p className="tx-payer">Paid by {tx.paidBy.name}</p>}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">
-            <FiBarChart2 size={48} />
-            <p>No transactions yet. Create a group and add expenses!</p>
-          </div>
-        )}
-      </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+              <BarChart2 className="h-12 w-12 opacity-20 mb-4" />
+              <p className="text-sm">No transactions found</p>
+              <p className="text-xs">Create a group and add expenses to see them here.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
