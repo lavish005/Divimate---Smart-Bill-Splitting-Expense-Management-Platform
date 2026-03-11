@@ -18,7 +18,7 @@ export const extractTextFromImage = async (imagePath) => {
     console.log("🟢 Starting OCR for:", imagePath);
 
     const { data: { text } } = await Tesseract.recognize(imagePath, "eng", {
-      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -.,()",
+      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789₹$Rs -.,()/",
       psm: 6, // one uniform block of text
     });
 
@@ -65,38 +65,91 @@ export const classifyFoodItem = async (item) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* 🧩 3️⃣ Parse menu text (clean OCR lines)                                   */
+/* 🧩 3️⃣ Parse menu text WITH prices (clean OCR lines)                       */
 /* -------------------------------------------------------------------------- */
 export const parseMenuText = (text) => {
   const excludeWords = [
     "soups", "main course", "desserts", "starters", "beverages", "drinks",
-    "menu", "markdown", "cafe", "restaurant", "specials", "today", "combo"
+    "menu", "markdown", "cafe", "restaurant", "specials", "today", "combo",
+    "total", "subtotal", "tax", "gst", "cgst", "sgst", "service", "charge",
+    "discount", "table", "bill", "invoice", "order", "date", "time", "qty"
   ];
 
-  const lines = text
-    .split("\n")
-    .map(line => 
-      line
-        .replace(/[0-9₹$.]/g, "")          // remove prices & symbols
-        .replace(/[^a-zA-Z\s]/g, "")       // remove random special chars
-        .replace(/\s+/g, " ")              // collapse extra spaces
-        .trim()
-    )
-    .filter(line => line.length > 2)       // ignore tiny words
-    .filter(line => !excludeWords.some(w => line.toLowerCase().includes(w)))
-    .filter((line, index, self) => self.indexOf(line) === index);
+  const results = [];
 
-  // 🧽 extra step: remove trailing 1-4 random letters (noise)
-  const cleanedLines = lines.map(l => {
-    const words = l.split(" ");
-    if (words.length > 1) {
-      const last = words[words.length - 1];
-      if (last.length <= 4 && !["veg","non","soup","rice","paneer"].includes(last.toLowerCase())) {
-        words.pop(); // remove short trailing word (likely noise)
+  const lines = text.split("\n").map(line => line.trim()).filter(line => line.length > 2);
+
+  for (const line of lines) {
+    // Skip headers/categories
+    if (excludeWords.some(w => line.toLowerCase().includes(w))) continue;
+
+    // Try to extract price from line
+    // Patterns: "₹199", "Rs.199", "Rs 199", "199.00", "199/-", just "199" at end
+    const pricePatterns = [
+      /₹\s*(\d+(?:\.\d{1,2})?)/,           // ₹199 or ₹ 199
+      /Rs\.?\s*(\d+(?:\.\d{1,2})?)/i,      // Rs.199, Rs 199
+      /INR\s*(\d+(?:\.\d{1,2})?)/i,        // INR 199
+      /(\d+(?:\.\d{1,2})?)\s*\/-/,         // 199/-
+      /(\d{2,4}(?:\.\d{1,2})?)\s*$/,       // 199 or 199.00 at end of line
+      /\s(\d{2,4}(?:\.\d{1,2})?)\s/,       // number in middle with spaces
+    ];
+
+    let price = null;
+    let priceMatch = null;
+
+    for (const pattern of pricePatterns) {
+      const match = line.match(pattern);
+      if (match) {
+        const extracted = parseFloat(match[1]);
+        // Valid price range: ₹10 to ₹9999
+        if (extracted >= 10 && extracted <= 9999) {
+          price = extracted;
+          priceMatch = match[0];
+          break;
+        }
       }
     }
-    return words.join(" ");
+
+    // Extract item name by removing price portion
+    let itemName = line;
+    if (priceMatch) {
+      itemName = line.replace(priceMatch, "");
+    }
+
+    // Clean item name
+    itemName = itemName
+      .replace(/[₹$]/g, "")                // remove currency symbols
+      .replace(/Rs\.?/gi, "")              // remove Rs
+      .replace(/\d+\.\d{2}/g, "")          // remove remaining decimals
+      .replace(/\d{3,}/g, "")              // remove long numbers (likely prices)
+      .replace(/[^a-zA-Z\s\-]/g, " ")      // keep only letters, spaces, hyphens
+      .replace(/\s+/g, " ")                // collapse spaces
+      .trim();
+
+    // Skip if name is too short or no meaningful content
+    if (itemName.length < 3) continue;
+
+    // Skip if it looks like just numbers/noise
+    const wordCount = itemName.split(" ").filter(w => w.length > 1).length;
+    if (wordCount === 0) continue;
+
+    // If no price found, skip this line (likely a header)
+    if (price === null) continue;
+
+    results.push({
+      item: itemName,
+      price: Math.round(price)
+    });
+  }
+
+  // Remove duplicates by item name
+  const seen = new Set();
+  const uniqueResults = results.filter(r => {
+    const key = r.item.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 
-  return cleanedLines;
+  return uniqueResults;
 };

@@ -7,6 +7,7 @@ import User from "../models/User.js";
 import {
   sendPaymentReminder,
   schedulePaymentReminder,
+  sendNewExpenseEmail,
 } from "../services/notificationService.js";
 
 import { sendNotification } from "../utils/notify.js";
@@ -123,6 +124,24 @@ export const addExpense = async (req, res) => {
           }
         } catch (err) {
           console.error("⚠️ Email reminder failed:", err.message);
+        }
+
+        // 🧾 New expense notification email
+        try {
+          if (user?.email && payer?.name) {
+            await sendNewExpenseEmail(
+              user.email,
+              user.name,
+              title,
+              amountNum,
+              payer.name,
+              group.name,
+              amountOwed
+            );
+            console.log("🧾 [EXPENSE EMAIL] Sent to:", user.name, "(", user.email, ")");
+          }
+        } catch (err) {
+          console.error("⚠️ New expense email failed:", err.message);
         }
 
         // ⏰ Scheduled reminder (e.g. 1 hour later)

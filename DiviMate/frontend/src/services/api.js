@@ -15,6 +15,11 @@ API.interceptors.request.use((config) => {
 
 // ── Auth ──
 export const registerUser = (data) => API.post("/users/register", data);
+export const sendRegisterOtp = (data) => API.post("/users/register/send-otp", data);
+export const verifyRegisterOtp = (data) => API.post("/users/register/verify-otp", data);
+export const resendOtp = (data) => API.post("/users/resend-otp", data);
+export const forgotPassword = (data) => API.post("/users/forgot-password", data);
+export const resetPassword = (data) => API.post("/users/reset-password", data);
 export const loginUser = (data) => API.post("/users/login", data);
 export const getProfile = () => API.get("/users/profile");
 export const updateDietType = (data) => API.put("/users/diet", data);

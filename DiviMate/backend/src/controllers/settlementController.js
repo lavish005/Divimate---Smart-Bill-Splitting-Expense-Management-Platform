@@ -4,6 +4,7 @@ import Settlement from "../models/Settlement.js";
 import Group from "../models/Group.js";
 import User from "../models/User.js";
 import { sendNotification } from "../utils/notify.js";
+import { sendSettlementEmail } from "../services/notificationService.js";
 
 // POST /api/settlements/create
 // body: { groupId, to, amount, expenseId? }
@@ -61,9 +62,12 @@ export const createSettlement = async (req, res) => {
       paidAt: new Date(),
     });
 
-    // 4️⃣ Notify receiver in-app
+    // 4️⃣ Load user details for notifications
+    const payer = await User.findById(from).select("name email");
+    const receiver = await User.findById(to).select("name email");
+
+    // 5️⃣ Notify receiver in-app
     try {
-      const payer = await User.findById(from).select("name");
       await sendNotification(
         to,
         `${payer?.name || "Someone"} settled ₹${amount} with you in "${group.name}".`,
@@ -73,6 +77,23 @@ export const createSettlement = async (req, res) => {
       console.log("🔔 [NOTIFICATION SENT] Settlement notification sent to receiver");
     } catch (err) {
       console.error("⚠️ Notification for settlement failed:", err.message);
+    }
+
+    // 6️⃣ Send email notifications to both parties
+    try {
+      if (payer?.email && receiver?.email) {
+        await sendSettlementEmail(
+          payer.email,
+          payer.name,
+          receiver.email,
+          receiver.name,
+          amount,
+          group.name
+        );
+        console.log("📧 [SETTLEMENT EMAIL] Sent to both parties");
+      }
+    } catch (err) {
+      console.error("⚠️ Settlement email failed:", err.message);
     }
 
     console.log("✅ [SETTLEMENT CREATED] ID:", settlement._id);

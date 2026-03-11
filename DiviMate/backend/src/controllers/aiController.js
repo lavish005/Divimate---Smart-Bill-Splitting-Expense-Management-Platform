@@ -23,20 +23,33 @@ export const analyzeMenu = async (req, res) => {
     // 1️⃣ OCR
     const text = await extractTextFromImage(imagePath);
     console.log("✅ [AI] OCR completed. Text length:", text.length);
+    console.log("📝 [AI] Raw OCR text:\n", text);
 
-    // 2️⃣ Clean & extract valid dish lines
-    console.log("🟎 [AI] Step 2/4: Parsing menu text...");
-    const items = parseMenuText(text);
-    console.log("✅ [AI] Found", items.length, "items");
+    // 2️⃣ Clean & extract valid dish lines with prices
+    console.log("🟎 [AI] Step 2/4: Parsing menu text with prices...");
+    const parsedItems = parseMenuText(text);
+    console.log("✅ [AI] Found", parsedItems.length, "items with prices");
+
+    if (parsedItems.length === 0) {
+      // Clean up uploaded file
+      if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+      return res.status(400).json({ 
+        msg: "Could not extract any items with prices from the image. Please upload a clearer menu/bill image.",
+        rawText: text
+      });
+    }
 
     // 3️⃣ AI classification
     console.log("🟎 [AI] Step 3/4: Classifying food items (Veg/Non-Veg)...");
     const results = [];
-    for (const item of items) {
-      const category = await classifyFoodItem(item);
-      // temporary price until OCR price extraction added
-      const price = Math.floor(Math.random() * 200) + 100; // ₹100–₹300
-      results.push({ item, category, price });
+    for (const parsed of parsedItems) {
+      const category = await classifyFoodItem(parsed.item);
+      results.push({ 
+        item: parsed.item, 
+        category, 
+        price: parsed.price 
+      });
+      console.log(`  → ${parsed.item}: ₹${parsed.price} (${category})`);
     }
     console.log("✅ [AI] Classification complete for all items");
 

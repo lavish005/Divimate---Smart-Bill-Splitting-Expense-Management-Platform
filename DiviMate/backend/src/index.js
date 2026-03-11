@@ -1,8 +1,9 @@
 // src/index.js
 
+import "dotenv/config"; // Auto-loads .env before any other code
+
 import express from "express";
 import http from "http";
-import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 
@@ -19,8 +20,6 @@ import { Server } from "socket.io";
 import { pipeline } from "@xenova/transformers";
 import schedule from "node-schedule";
 import { runWeeklyReminders } from "./jobs/weeklyReminder.js";
-
-dotenv.config();
 
 console.log("\n" + "=".repeat(50));
 console.log("🚀 DiviMate Backend Server Initializing...");

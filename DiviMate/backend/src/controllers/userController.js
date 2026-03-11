@@ -1,9 +1,157 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { sendPhoneOtpEmail } from "../services/notificationService.js";
+import { 
+  sendPhoneOtpEmail,
+  sendRegistrationOtpEmail,
+  sendWelcomeEmail,
+  sendPasswordResetOtpEmail,
+  sendPasswordChangedEmail
+} from "../services/notificationService.js";
 
-// ✅ Register new user
+// Helper: Generate 6-digit OTP
+const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// ===============================
+// 🔐 STEP 1: Send Registration OTP
+// ===============================
+export const sendRegisterOtp = async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    console.log("\n📧 [REGISTRATION OTP] Request started");
+    console.log("📧 Email:", email);
+    console.log("⏰ Timestamp:", new Date().toISOString());
+
+    if (!email) {
+      return res.status(400).json({ msg: "Email is required" });
+    }
+
+    // Check if email already registered and verified
+    const existing = await User.findOne({ email });
+    if (existing && existing.emailVerified) {
+      console.log("❌ [REGISTRATION OTP] Email already registered:", email);
+      return res.status(400).json({ msg: "Email already registered. Please login." });
+    }
+
+    const otp = generateOtp();
+    console.log("🔑 [DEBUG] Generated OTP:", otp); // Debug log - remove in production
+    const otpHash = await bcrypt.hash(otp, 10);
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    if (existing) {
+      // Update existing unverified user
+      existing.emailOtpHash = otpHash;
+      existing.emailOtpExpiresAt = otpExpiry;
+      await existing.save();
+    } else {
+      // Create temporary user record
+      await User.create({
+        name: name || "User",
+        email,
+        password: "temp_password", // Will be set during verification
+        emailOtpHash: otpHash,
+        emailOtpExpiresAt: otpExpiry,
+        emailVerified: false
+      });
+    }
+
+    const emailSent = await sendRegistrationOtpEmail(email, otp, name);
+    
+    if (!emailSent) {
+      return res.status(500).json({ msg: "Failed to send OTP email. Please try again." });
+    }
+
+    console.log("✅ [REGISTRATION OTP] OTP sent to:", email);
+    res.json({ msg: "OTP sent to your email", email });
+  } catch (error) {
+    console.error("❌ Registration OTP error:", error.message);
+    res.status(500).json({ msg: "Server error while sending OTP" });
+  }
+};
+
+// ===============================
+// ✅ STEP 2: Verify OTP & Complete Registration
+// ===============================
+export const verifyRegisterOtp = async (req, res) => {
+  try {
+    const { email, otp, name, password, dietType } = req.body;
+    console.log("\n🔐 [VERIFY REGISTRATION] Attempt started");
+    console.log("📧 Email:", email);
+    console.log("🔑 OTP received:", otp);
+    console.log("⏰ Timestamp:", new Date().toISOString());
+
+    // Clean the OTP - remove whitespace and ensure it's a string
+    const cleanOtp = String(otp).trim();
+
+    if (!email || !cleanOtp || !password) {
+      return res.status(400).json({ msg: "Email, OTP, and password are required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ msg: "No registration found for this email. Please request OTP first." });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({ msg: "Email already verified. Please login." });
+    }
+
+    if (!user.emailOtpHash || !user.emailOtpExpiresAt) {
+      return res.status(400).json({ msg: "OTP not requested. Please request a new OTP." });
+    }
+
+    if (user.emailOtpExpiresAt < new Date()) {
+      return res.status(400).json({ msg: "OTP expired. Please request a new one." });
+    }
+
+    console.log("🔍 Comparing OTP...");
+    console.log("   OTP Hash exists:", !!user.emailOtpHash);
+    
+    const isMatch = await bcrypt.compare(cleanOtp, user.emailOtpHash);
+    console.log("   OTP Match result:", isMatch);
+    
+    if (!isMatch) {
+      return res.status(400).json({ msg: "Invalid OTP. Please check and try again." });
+    }
+
+    // Complete registration
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.name = name || user.name;
+    user.password = hashedPassword;
+    user.dietType = dietType || "Veg";
+    user.emailVerified = true;
+    user.emailOtpHash = "";
+    user.emailOtpExpiresAt = null;
+    await user.save();
+
+    // Generate token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    const safeUser = await User.findById(user._id).select("-password -emailOtpHash -phoneOtpHash -passwordResetOtpHash");
+
+    // Send welcome email (async, don't wait)
+    sendWelcomeEmail(email, user.name);
+
+    console.log("✅ [REGISTRATION SUCCESS] User verified and registered");
+    console.log("🆔 User ID:", user._id);
+    console.log("📧 Email:", email);
+
+    res.status(201).json({
+      msg: "Registration successful! Welcome to DiviMate.",
+      token,
+      user: safeUser,
+    });
+  } catch (error) {
+    console.error("❌ Verify registration error:", error.message);
+    res.status(500).json({ msg: "Server error during registration" });
+  }
+};
+
+// ===============================
+// 🆕 Legacy Register (without OTP - kept for compatibility)
+// ===============================
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password, dietType } = req.body;
@@ -30,10 +178,14 @@ export const registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      dietType: dietType || "Veg" // 👈 default if not provided
+      dietType: dietType || "Veg",
+      emailVerified: true // Legacy registration is auto-verified
     });
 
     const safeUser = await User.findById(newUser._id).select("-password");
+
+    // Send welcome email
+    sendWelcomeEmail(email, name);
 
     console.log("✅ [REGISTRATION SUCCESS] New user created");
     console.log("🆔 User ID:", newUser._id);
@@ -317,5 +469,141 @@ export const updatePhone = async (req, res) => {
   } catch (error) {
     console.error("❌ Error updating phone:", error.message);
     res.status(500).json({ msg: "Server error while updating phone" });
+  }
+};
+
+// ===============================
+// 🔑 FORGOT PASSWORD: Send Reset OTP
+// ===============================
+export const sendPasswordResetOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    console.log("\n🔑 [PASSWORD RESET OTP] Request started");
+    console.log("📧 Email:", email);
+
+    if (!email) {
+      return res.status(400).json({ msg: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal if email exists for security
+      return res.json({ msg: "If this email is registered, you will receive a reset code." });
+    }
+
+    const otp = generateOtp();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    user.passwordResetOtpHash = otpHash;
+    user.passwordResetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    await sendPasswordResetOtpEmail(email, otp, user.name);
+
+    console.log("✅ [PASSWORD RESET OTP] Sent to:", email);
+    res.json({ msg: "If this email is registered, you will receive a reset code." });
+  } catch (error) {
+    console.error("❌ Password reset OTP error:", error.message);
+    res.status(500).json({ msg: "Server error while sending reset code" });
+  }
+};
+
+// ===============================
+// 🔐 RESET PASSWORD: Verify OTP & Change Password
+// ===============================
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    console.log("\n🔐 [PASSWORD RESET] Attempt started");
+    console.log("📧 Email:", email);
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ msg: "Email, OTP, and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ msg: "Password must be at least 6 characters" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    if (!user.passwordResetOtpHash || !user.passwordResetOtpExpiresAt) {
+      return res.status(400).json({ msg: "Reset code not requested. Please request a new one." });
+    }
+
+    if (user.passwordResetOtpExpiresAt < new Date()) {
+      return res.status(400).json({ msg: "Reset code expired. Please request a new one." });
+    }
+
+    const isMatch = await bcrypt.compare(otp, user.passwordResetOtpHash);
+    if (!isMatch) {
+      return res.status(400).json({ msg: "Invalid reset code" });
+    }
+
+    // Update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    user.passwordResetOtpHash = "";
+    user.passwordResetOtpExpiresAt = null;
+    await user.save();
+
+    // Send confirmation email
+    sendPasswordChangedEmail(email, user.name);
+
+    console.log("✅ [PASSWORD RESET] Password changed for:", email);
+    res.json({ msg: "Password reset successful. You can now login with your new password." });
+  } catch (error) {
+    console.error("❌ Password reset error:", error.message);
+    res.status(500).json({ msg: "Server error while resetting password" });
+  }
+};
+
+// ===============================
+// 🔄 RESEND OTP (for registration or password reset)
+// ===============================
+export const resendOtp = async (req, res) => {
+  try {
+    const { email, type } = req.body; // type: 'registration' or 'password-reset'
+    console.log("\n🔄 [RESEND OTP] Request for:", type);
+    console.log("📧 Email:", email);
+
+    if (!email || !type) {
+      return res.status(400).json({ msg: "Email and type are required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    const otp = generateOtp();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    if (type === 'registration') {
+      if (user.emailVerified) {
+        return res.status(400).json({ msg: "Email already verified. Please login." });
+      }
+      user.emailOtpHash = otpHash;
+      user.emailOtpExpiresAt = otpExpiry;
+      await user.save();
+      await sendRegistrationOtpEmail(email, otp, user.name);
+    } else if (type === 'password-reset') {
+      user.passwordResetOtpHash = otpHash;
+      user.passwordResetOtpExpiresAt = otpExpiry;
+      await user.save();
+      await sendPasswordResetOtpEmail(email, otp, user.name);
+    } else {
+      return res.status(400).json({ msg: "Invalid OTP type" });
+    }
+
+    console.log("✅ [RESEND OTP] New OTP sent to:", email);
+    res.json({ msg: "New OTP sent to your email" });
+  } catch (error) {
+    console.error("❌ Resend OTP error:", error.message);
+    res.status(500).json({ msg: "Server error while resending OTP" });
   }
 };

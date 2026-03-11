@@ -5,6 +5,28 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    // Email verification
+    emailVerified: {
+      type: Boolean,
+      default: false
+    },
+    emailOtpHash: {
+      type: String,
+      default: ""
+    },
+    emailOtpExpiresAt: {
+      type: Date,
+      default: null
+    },
+    // Password reset
+    passwordResetOtpHash: {
+      type: String,
+      default: ""
+    },
+    passwordResetOtpExpiresAt: {
+      type: Date,
+      default: null
+    },
     dietType: {
       type: String,
       enum: ["Veg", "Non-Veg"],

@@ -1,27 +1,23 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wallet, Loader2, Mail, KeyRound, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { sendRegisterOtp, verifyRegisterOtp, resendOtp } from "../services/api";
+import { KeyRound, Loader2, Mail, Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { forgotPassword, resetPassword, resendOtp } from "../services/api";
 
-const Register = () => {
-  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: Complete
+const ForgotPassword = () => {
+  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password, 4: Success
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
-    password: "",
-    confirmPassword: "",
-    dietType: "Non-Veg",
     otp: "",
+    newPassword: "",
+    confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const { login } = useAuth();
   const navigate = useNavigate();
 
   // Countdown timer for resend OTP
@@ -36,22 +32,22 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Step 1: Send OTP to email
+  // Step 1: Send reset OTP
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!formData.email || !formData.name) {
-      toast.error("Please enter your name and email");
+    if (!formData.email) {
+      toast.error("Please enter your email");
       return;
     }
 
     setLoading(true);
     try {
-      await sendRegisterOtp({ email: formData.email, name: formData.name });
-      toast.success("OTP sent to your email!");
+      await forgotPassword({ email: formData.email });
+      toast.success("If this email is registered, you'll receive a reset code.");
       setStep(2);
-      setResendTimer(60); // 60 second cooldown
+      setResendTimer(60);
     } catch (err) {
-      toast.error(err.response?.data?.msg || "Failed to send OTP");
+      toast.error(err.response?.data?.msg || "Failed to send reset code");
     } finally {
       setLoading(false);
     }
@@ -61,48 +57,39 @@ const Register = () => {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!formData.otp || formData.otp.length !== 6) {
-      toast.error("Please enter a valid 6-digit OTP");
+      toast.error("Please enter a valid 6-digit code");
       return;
     }
     setStep(3);
   };
 
-  // Step 3: Complete registration
-  const handleCompleteRegistration = async (e) => {
+  // Step 3: Reset password
+  const handleResetPassword = async (e) => {
     e.preventDefault();
     
-    if (formData.password.length < 6) {
+    if (formData.newPassword.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
     }
     
-    if (formData.password !== formData.confirmPassword) {
+    if (formData.newPassword !== formData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await verifyRegisterOtp({
+      await resetPassword({
         email: formData.email,
         otp: formData.otp,
-        name: formData.name,
-        password: formData.password,
-        dietType: formData.dietType,
+        newPassword: formData.newPassword,
       });
-      
-      // Auto-login after registration
-      const { token, user } = response.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-      
-      toast.success("Account created successfully! 🎉");
-      navigate("/dashboard");
-      window.location.reload(); // Refresh to update auth state
+      toast.success("Password reset successful!");
+      setStep(4);
     } catch (err) {
-      toast.error(err.response?.data?.msg || "Registration failed");
-      if (err.response?.data?.msg?.includes("OTP")) {
-        setStep(2); // Go back to OTP step if OTP error
+      toast.error(err.response?.data?.msg || "Failed to reset password");
+      if (err.response?.data?.msg?.includes("code")) {
+        setStep(2);
       }
     } finally {
       setLoading(false);
@@ -115,11 +102,11 @@ const Register = () => {
     
     setLoading(true);
     try {
-      await resendOtp({ email: formData.email, type: "registration" });
-      toast.success("New OTP sent to your email!");
+      await resendOtp({ email: formData.email, type: "password-reset" });
+      toast.success("New reset code sent to your email!");
       setResendTimer(60);
     } catch (err) {
-      toast.error(err.response?.data?.msg || "Failed to resend OTP");
+      toast.error(err.response?.data?.msg || "Failed to resend code");
     } finally {
       setLoading(false);
     }
@@ -133,50 +120,44 @@ const Register = () => {
             <div className="rounded-full bg-primary/10 p-3">
               {step === 1 && <Mail className="h-6 w-6 text-primary" />}
               {step === 2 && <KeyRound className="h-6 w-6 text-primary" />}
-              {step === 3 && <CheckCircle2 className="h-6 w-6 text-primary" />}
+              {step === 3 && <Lock className="h-6 w-6 text-primary" />}
+              {step === 4 && <CheckCircle2 className="h-6 w-6 text-green-500" />}
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-center">
-            {step === 1 && "Create an account"}
-            {step === 2 && "Verify your email"}
-            {step === 3 && "Complete your profile"}
+            {step === 1 && "Forgot Password?"}
+            {step === 2 && "Enter Reset Code"}
+            {step === 3 && "Create New Password"}
+            {step === 4 && "Password Reset!"}
           </CardTitle>
           <CardDescription className="text-center">
-            {step === 1 && "Enter your email to get started"}
+            {step === 1 && "Enter your email to receive a reset code"}
             {step === 2 && `We sent a 6-digit code to ${formData.email}`}
-            {step === 3 && "Set your password to finish registration"}
+            {step === 3 && "Choose a strong password for your account"}
+            {step === 4 && "Your password has been successfully changed"}
           </CardDescription>
           
           {/* Step indicator */}
-          <div className="flex justify-center gap-2 pt-4">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`h-2 w-8 rounded-full transition-colors ${
-                  s <= step ? "bg-primary" : "bg-muted"
-                }`}
-              />
-            ))}
-          </div>
+          {step < 4 && (
+            <div className="flex justify-center gap-2 pt-4">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`h-2 w-8 rounded-full transition-colors ${
+                    s <= step ? "bg-primary" : "bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </CardHeader>
 
-        {/* Step 1: Email & Name */}
+        {/* Step 1: Email */}
         {step === 1 && (
           <form onSubmit={handleSendOtp}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder="John Doe"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email Address</Label>
                 <Input
                   id="email"
                   name="email"
@@ -191,24 +172,24 @@ const Register = () => {
             <CardFooter className="flex flex-col gap-4">
               <Button className="w-full" type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Send Verification Code
+                Send Reset Code
               </Button>
-              <div className="text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link to="/login" className="font-medium text-primary hover:underline">
-                  Sign In
-                </Link>
-              </div>
+              <Link to="/login" className="w-full">
+                <Button variant="ghost" className="w-full">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Login
+                </Button>
+              </Link>
             </CardFooter>
           </form>
         )}
 
-        {/* Step 2: OTP Verification */}
+        {/* Step 2: OTP */}
         {step === 2 && (
           <form onSubmit={handleVerifyOtp}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="otp">Verification Code</Label>
+                <Label htmlFor="otp">Reset Code</Label>
                 <Input
                   id="otp"
                   name="otp"
@@ -256,18 +237,18 @@ const Register = () => {
           </form>
         )}
 
-        {/* Step 3: Password & Complete */}
+        {/* Step 3: New Password */}
         {step === 3 && (
-          <form onSubmit={handleCompleteRegistration}>
+          <form onSubmit={handleResetPassword}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="newPassword">New Password</Label>
                 <Input
-                  id="password"
-                  name="password"
+                  id="newPassword"
+                  name="newPassword"
                   type="password"
                   placeholder="At least 6 characters"
-                  value={formData.password}
+                  value={formData.newPassword}
                   onChange={handleChange}
                   required
                 />
@@ -284,24 +265,11 @@ const Register = () => {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="dietType">Diet Preference</Label>
-                <select
-                  id="dietType"
-                  name="dietType"
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={formData.dietType}
-                  onChange={handleChange}
-                >
-                  <option value="Non-Veg">Non-Veg</option>
-                  <option value="Veg">Veg</option>
-                </select>
-              </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
               <Button className="w-full" type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Account
+                Reset Password
               </Button>
               <Button
                 type="button"
@@ -315,9 +283,28 @@ const Register = () => {
             </CardFooter>
           </form>
         )}
+
+        {/* Step 4: Success */}
+        {step === 4 && (
+          <CardContent className="space-y-4">
+            <div className="text-center py-4">
+              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2 className="h-8 w-8 text-green-500" />
+              </div>
+              <p className="text-muted-foreground mb-6">
+                You can now sign in with your new password.
+              </p>
+              <Link to="/login">
+                <Button className="w-full">
+                  Sign In Now
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        )}
       </Card>
     </div>
   );
 };
 
-export default Register;
+export default ForgotPassword;

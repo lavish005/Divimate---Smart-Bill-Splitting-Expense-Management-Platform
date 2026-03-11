@@ -8,7 +8,12 @@ import {
   updateProfile,
   updateEmail,
   requestPhoneOtp,
-  updatePhone
+  updatePhone,
+  sendRegisterOtp,
+  verifyRegisterOtp,
+  sendPasswordResetOtp,
+  resetPassword,
+  resendOtp
 } from "../controllers/userController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import { getUserDashboard, getDashboardChartData } from "../controllers/userDashboardController.js"; // ⭐ NEW
@@ -28,6 +33,16 @@ const upload = multer({
 
 const router = express.Router();
 
+// 🔐 OTP-based Registration (New Flow)
+router.post("/register/send-otp", sendRegisterOtp);
+router.post("/register/verify-otp", verifyRegisterOtp);
+
+// 🔑 Password Reset
+router.post("/forgot-password", sendPasswordResetOtp);
+router.post("/reset-password", resetPassword);
+router.post("/resend-otp", resendOtp);
+
+// Legacy registration (without OTP)
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/profile", authMiddleware, getProfile);
